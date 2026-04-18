@@ -1,9 +1,12 @@
 # Classe abstrata Aposentadoria 
 from abc import ABC, abstractmethod
-
+"""
 #Classe abstrata define principais padrões de requisitos para aposentadoria e **kwargs permite outros parâmetros para classes filhas. Contrato flexível, mas classe pai adianta principais padrões.
 
-class Aposentadoria(ABC):   
+Criei uma forma que fosse genérica para múltiplos usos, extrair dados de uma planilha, banco de dados, formulário, chatbot. 
+"""
+#TODO Construir método abstrato de cálculo.
+class Aposentadoria(ABC):   #Classe não instanciada.
 # Padrões de contagem que se repetem em vários tipos de aposentadoria.
     min_tempo_contribuicao = 25
     min_servico_publico = 15
@@ -16,12 +19,15 @@ class Aposentadoria(ABC):
         self.tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
         self.tempo_cargo = int(kwargs.get('tempo_cargo', 0))
         self.dados_extras = kwargs
-
+# Class method e abstract method para atribuição de classes aos objetos de acordo com os requisitos.
     @classmethod
     @abstractmethod
     def checar_tipo(cls, **kwargs):
         pass
     
+"""
+# Aposentadoria Voluntária - Padrão típico de aposentadoria baseado em Idade, Tempo de contribuição, tempo de serviço público e tempo no cargo.
+"""
 class Voluntaria(Aposentadoria):
     def __init__(self,  **kwargs):
         super().__init__(**kwargs)
@@ -34,7 +40,7 @@ class Voluntaria(Aposentadoria):
         tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
         tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
         tempo_cargo = int(kwargs.get('tempo_cargo', 0))
-        tempo_magisterio = int(kwargs.get('tempo_magisterio', 0))
+        tempo_magisterio = int(kwargs.get('tempo_magisterio', 0)) #Requisito extra, modificador de Idade mínima. 
         
         idade_minima = 65
         if sexo.upper() == 'F':
@@ -42,13 +48,15 @@ class Voluntaria(Aposentadoria):
         elif sexo.upper() != 'M':
             return False
         
-        if tempo_magisterio >= 25:
+        if tempo_magisterio >= 25: #Redução de 5 anos de idade mínima caso cumpra o tempo de contribuição em magistério.
             idade_minima -= 5
         
         return (idade >= idade_minima and 
                 tempo_contribuicao >= cls.min_tempo_contribuicao and 
                 tempo_servico_publico >= cls.min_servico_publico and 
                 tempo_cargo >= cls.min_cargo)
+        
+
     
 class Especial(Aposentadoria):
         def __init__(self,  **kwargs):
@@ -77,10 +85,16 @@ class Especial(Aposentadoria):
                     tempo_exposicao >= 25)
         
 class Deficiencia(Aposentadoria):
-        redutor_especifico = 0
-        def __init__(self,  **kwargs):
+        def __init__(self, modificador=None, **kwargs):
+            sexo = kwargs.get('sexo', '').upper()
+            self.modificador = modificador or self.__class__.modificador_tempo(sexo)
             super().__init__(**kwargs)
             
+        @classmethod
+        
+        def modificador_tempo(cls, sexo):
+            return -10
+
         @classmethod      
         
         def checar_tipo(cls,**kwargs):
@@ -90,11 +104,9 @@ class Deficiencia(Aposentadoria):
             tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
             tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
             tempo_cargo = int(kwargs.get('tempo_cargo', 0))
-
 # TODO: CRIAR A VARIÁVEL DEFICIENCIA, FAZER AS SUBCLASSES
             grau_deficiencia_raw = kwargs.get('grau_deficiencia', '')
             grau_informado = str(grau_deficiencia_raw or "").strip().upper()
-            
             if grau_informado in ("0", "NONE"):
                 grau_informado = ""
                 
@@ -111,27 +123,25 @@ class Deficiencia(Aposentadoria):
                 return False
                         
             return (deficiencia == 'S' and valida_grau and idade >= idade_minima and 
-                    tempo_contribuicao >= cls.min_tempo_contribuicao - 10 and 
+                    tempo_contribuicao >= (cls.min_tempo_contribuicao + cls.modificador_tempo(sexo)) and 
                     tempo_servico_publico >= cls.min_servico_publico and 
                     tempo_cargo >= cls.min_cargo)
             
 class DeficienciaGrave(Deficiencia):
-        @classmethod      
-
-        def checar_tipo(cls,**kwargs):
-            deficiencia = kwargs.get('deficiencia', '').upper()
-            sexo = kwargs.get('sexo', '').upper()
-            tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
-            tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
-            tempo_cargo = int(kwargs.get('tempo_cargo', 0))
-            
-            redutor = 5 if sexo =='F' else 0
-             
-            return deficiencia == S and tempo_contribuicao >= cls.min_tempo_contribuicao - redutor and tempo_servico_publico >= cls.min_servico_publico and tempo_cargo >= cls.min_cargo
-    
+    @classmethod
+    def modificador_tempo(cls, sexo):
+        return -5 if sexo == 'F' else 0
 
 class DeficienciaModerada(Deficiencia):
-    pass
+    @classmethod
+    def modificador_tempo(cls, sexo):
+        return -1 if sexo == 'F' else 4
 
 class DeficienciaLeve(Deficiencia):
-    pass
+    @classmethod
+    def modificador_tempo(cls, sexo ):
+        return 3 if sexo == 'F' else 8
+    
+    
+
+    
