@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 """
 #Classe abstrata define principais padrões de requisitos para aposentadoria e **kwargs permite outros parâmetros para classes filhas. Contrato flexível, mas classe pai adianta principais padrões.
 
-Criei uma forma que fosse genérica para múltiplos usos, extrair dados de uma planilha, banco de dados, formulário, chatbot.
+Criei uma forma que fosse genérica para múltiplos usos, extrair dados de uma planilha, banco de dados, formulário, chatbot. 
 """
 #TODO Construir método abstrato de cálculo.
 class Aposentadoria(ABC):   #Classe não instanciada.
@@ -25,24 +25,8 @@ class Aposentadoria(ABC):   #Classe não instanciada.
     def checar_tipo(cls, **kwargs):
         pass
     
-    @classmethod
-    def coeficiente_redutor(cls, **kwargs):
-        return 1
-# Coeficiente redutor aplicado somente no caso de Aposentadoria Compulsória, com contribuição menor que 20 anos. Definida na classe Compulsoria(Aposentadoria)
-    @classmethod
-    def calcular_proventos(cls, **kwargs):
-        tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
-        basecalculo = 0.60
-        anos_excedentes = max(0, tempo_contribuicao - 20)
-        bonus = anos_excedentes * 0.02
-        coeficiente = (basecalculo + bonus)*cls.coeficiente_redutor(**kwargs)
-        return coeficiente
 """
-#Calculo geral baseado na lei: (60% + 02% por ano que passar de 20 anos) x (100% da média das contribuições desde 1994)
-
-"""
-"""
-    # Aposentadoria Voluntária - Padrão típico de aposentadoria baseado em Idade, Tempo de contribuição, tempo de serviço público e tempo no cargo.
+# Aposentadoria Voluntária - Padrão típico de aposentadoria baseado em Idade, Tempo de contribuição, tempo de serviço público e tempo no cargo.
 """
 class Voluntaria(Aposentadoria):
     def __init__(self,  **kwargs):
@@ -120,9 +104,9 @@ class Deficiencia(Aposentadoria):
             tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
             tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
             tempo_cargo = int(kwargs.get('tempo_cargo', 0))
+# TODO: CRIAR A VARIÁVEL DEFICIENCIA, FAZER AS SUBCLASSES
             grau_deficiencia_raw = kwargs.get('grau_deficiencia', '')
             grau_informado = str(grau_deficiencia_raw or "").strip().upper()
-            
             if grau_informado in ("0", "NONE"):
                 grau_informado = ""
                 
@@ -158,43 +142,58 @@ class DeficienciaLeve(Deficiencia):
     def modificador_tempo(cls, sexo ):
         return 3 if sexo == 'F' else 8
     
-class Compulsoria(Aposentadoria):
-    def __init__(self,  **kwargs):
-        super().__init__(**kwargs)    
+def simulador_aposentadoria():
+    print("=== Simulador de Aposentadoria ===")
+    
+    # Coleta de dados básicos
+    dados = {
+        'sexo': input("Sexo (M/F): ").strip().upper(),
+        'idade': int(input("Idade: ") or 0),
+        'tempo_contribuicao': int(input("Tempo de Contribuição (anos): ") or 0),
+        'tempo_servico_publico': int(input("Tempo de Serviço Público (anos): ") or 0),
+        'tempo_cargo': int(input("Tempo no Cargo Atual (anos): ") or 0),
+    }
+
+    # Pergunta sobre condições específicas
+    print("\n--- Condições Especiais ---")
+    dados['deficiencia'] = input("Possui deficiência? (S/N): ").strip().upper()
+    if dados['deficiencia'] == 'S':
+        dados['grau_deficiencia'] = input("Grau (GRAVE, MODERADA, LEVE ou deixe em branco para Idade): ").strip().upper()
+    
+    dados['especial'] = input("Trabalha sob exposição a agentes nocivos? (S/N): ").strip().upper()
+    if dados['especial'] == 'S':
+        dados['exposicao'] = int(input("Tempo de exposição (anos): ") or 0)
         
-    @classmethod
-    def checar_tipo(cls, **kwargs):
-        idade = int(kwargs.get('idade', 0))
-        return idade >= 75
+    dados['tempo_magisterio'] = int(input("Tempo em Magistério (se não houver, digite 0): ") or 0)
+
+    # Lista de classes para testar
+    classes_para_testar = [
+        ("Voluntária Comum", Voluntaria),
+        ("Especial (Agentes Nocivos)", Especial),
+        ("PCD Grave", DeficienciaGrave),
+        ("PCD Moderada", DeficienciaModerada),
+        ("PCD Leve", DeficienciaLeve),
+        ("PCD por Idade", Deficiencia)
+    ]
+
+    print("\n=== Resultado da Análise ===")
+    concedida = False
     
-    @classmethod
-    def coeficiente_redutor(cls,**kwargs):
-        tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
-        if tempo_contribuicao < 20:
-            return max(1, tempo_contribuicao/20)
-        return 1
+    for nome, classe in classes_para_testar:
+        if classe.checar_tipo(**dados):
+            # Instancia para mostrar os detalhes
+            obj = classe(**dados)
+            mod_texto = f" (Modificador de tempo: {obj.modificador})" if hasattr(obj, 'modificador') else ""
+            
+            print(f"[✅] Aposentadoria {nome} CONCEDIDA!{mod_texto}")
+            concedida = True
     
-class IncapacidadePermanente(Aposentadoria):
-    @classmethod
-    def checar_tipo(cls, **kwargs):
-        incapacidade_permanente = kwargs.get('incapacidade_permanente', '').upper()
-        return incapacidade_permanente == 'S'
-    
-    @classmethod
-    def calcular_proventos(cls, **kwargs):
-        return 1
-    
-class AcidentedeTrabalho(IncapacidadePermanente):
-    def checar_tipo(cls, **kwargs):
-        incapacidade_permanente = kwargs.get('incapacidade_permanente', '').upper()
-        acidente_de_trabalho = kwargs.get('acidente_de_trabalho', '').upper()
-        return incapacidade_permanente == 'S' and acidente_de_trabalho == 'S'
-    
-    @classmethod
-    def calcular_proventos(cls, **kwargs):
-        return 0.8
-        
-    
-    
-    
+    if not concedida:
+        print("[❌] Infelizmente você ainda não cumpre os requisitos para nenhum dos tipos testados.")
+
+# Executa o simulador
+if __name__ == "__main__":
+    simulador_aposentadoria()
+
+
     
