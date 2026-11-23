@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 
@@ -11,10 +12,11 @@ class Segurado:
     tempo_contribuicao: int = 0
     tempo_servico_publico: int = 0
     tempo_cargo: int = 0
+    data_ingresso_servico_publico: date | None = None  # Novo campo!
 
     # --- Dados Específicos ---
+    tempo_carreira: int = 0
     tempo_magisterio: int = 0
-    especial: bool = False
     exposicao: int = 0
     deficiencia: bool = False
     grau_deficiencia: str = ''
@@ -29,11 +31,15 @@ class Segurado:
         if self.sexo not in ('M', 'F'):
             raise ValueError("Sexo deve ser 'M' ou 'F'.")
 
+        if self.data_ingresso_servico_publico and self.data_ingresso_servico_publico > date.today():
+            raise ValueError("Data de ingresso não pode ser no futuro.")
+
         campos_numericos = (
             self.idade,
             self.tempo_contribuicao,
             self.tempo_servico_publico,
             self.tempo_cargo,
+            self.tempo_carreira,
             self.tempo_magisterio,
             self.exposicao,
         )
@@ -52,6 +58,7 @@ class Aposentadoria(ABC):  # Classe não instanciada.
     min_tempo_contribuicao = 25
     min_servico_publico = 15
     min_cargo = 5
+    percentual_de_contrib: float | None = 1.0
 
     def __init__(self, segurado: Segurado):
         self.segurado = segurado
@@ -60,20 +67,20 @@ class Aposentadoria(ABC):  # Classe não instanciada.
     @abstractmethod
     def checar_tipo(cls, segurado: Segurado) -> bool:
         pass
-
+   
     @classmethod
     def coeficiente_redutor(cls, segurado: Segurado) -> float:
         return 1.0
 
     # Coeficiente redutor aplicado somente no caso de Aposentadoria Compulsória (< 20 anos).
-    # Cálculo geral: (60% + 2% por ano que passar de 20 anos) x (100% da média das contribuições desde 1994)
+    # Cálculo geral: (60% + 2% por ano que passar de 20 anos) x (média de 100% das contribuições desde 1994)
     @classmethod
-    def calcular_proventos(cls, segurado: Segurado) -> float:
+    def calcular_proventos(cls, segurado: Segurado) -> tuple[float | None, float]:
         base_calculo = 0.60
         anos_excedentes = max(0, segurado.tempo_contribuicao - 20)
         bonus = anos_excedentes * 0.02
-        coeficiente = (base_calculo + bonus) * cls.coeficiente_redutor(segurado)
-        return coeficiente
+        coeficiente = (base_calculo + bonus) * cls.coeficiente_redutor(segurado) #coeficiente de proporcionalidade aplicado à média calculada
+        return cls.percentual_de_contrib, round(coeficiente, 4) #Retorna o percentual de contribuições para cálculo da média e o coeficiente de proporcionalidade.
 
 
 class Voluntaria(Aposentadoria):
@@ -103,8 +110,7 @@ class Especial(Aposentadoria):
         idade_minima = 57 if segurado.sexo == 'F' else 60
 
         return (
-            segurado.especial
-            and segurado.idade >= idade_minima
+            segurado.idade >= idade_minima
             and segurado.tempo_contribuicao >= cls.min_tempo_contribuicao
             and segurado.tempo_servico_publico >= cls.min_servico_publico
             and segurado.tempo_cargo >= cls.min_cargo
@@ -184,15 +190,135 @@ class IncapacidadePermanente(Aposentadoria):
         return segurado.incapacidade_permanente
 
     @classmethod
-    def calcular_proventos(cls, segurado: Segurado) -> float:
-        return 1.0
+    def calcular_proventos(cls, segurado: Segurado) -> tuple[float, float]:
+        return cls.percentual_de_contrib, 1.0
 
 
 class AcidentedeTrabalho(IncapacidadePermanente):
+    percentual_de_contrib = 0.8  # Herda calcular_proventos() e já retorna (0.8, 1.0)!
     @classmethod
     def checar_tipo(cls, segurado: Segurado) -> bool:
         return segurado.incapacidade_permanente and segurado.acidente_de_trabalho
 
+class RegraDeTransicao_2003(Aposentadoria):
+    data_limite_ingresso = date(2019, 12, 31)
+    
     @classmethod
-    def calcular_proventos(cls, segurado: Segurado) -> float:
-        return 0.8
+    def calcular_proventos(cls, segurado: Segurado) -> tuple[float | None, float]:
+        return None, 1.0
+
+class RegraDeTransicao_2003_A(RegraDeTransicao_2003):
+    min_servico_publico = 20
+    
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        if segurado.data_ingresso_servico_publico is None:
+            return False
+
+        if segurado.sexo == 'F':
+            idade_minima = 55
+            min_tempo_contribuicao = 30
+            tempo_min_magisterio = 25
+        else:
+            idade_minima = 60
+            min_tempo_contribuicao = 35
+            tempo_min_magisterio = 30          
+        
+        if segurado.tempo_magisterio >= tempo_min_magisterio:
+            idade_minima -= 5
+            min_tempo_contribuicao -= 5
+
+        return (
+            segurado.data_ingresso_servico_publico <= cls.data_limite_ingresso
+            and segurado.idade >= idade_minima
+            and segurado.tempo_contribuicao >= min_tempo_contribuicao
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+        )
+
+class RegraDeTransicao_2003_B(RegraDeTransicao_2003): #Regra de Transição sem Idade Mínima
+    min_servico_publico = 25
+    min_tempo_carreira = 15
+
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        if segurado.data_ingresso_servico_publico is None:
+            return False
+            
+        if segurado.sexo == 'F':
+            idade_minima = 55
+            min_tempo_contribuicao = 30
+        else:
+            idade_minima = 60
+            min_tempo_contribuicao = 35
+            
+        anos_excedentes = max(0, segurado.tempo_contribuicao - min_tempo_contribuicao)
+        idade_minima -= anos_excedentes
+        
+        return (
+            segurado.data_ingresso_servico_publico <= cls.data_limite_ingresso
+            and segurado.idade >= idade_minima
+            and segurado.tempo_contribuicao >= min_tempo_contribuicao
+            and segurado.tempo_carreira >= cls.min_tempo_carreira
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+        )
+
+class RegraDeTransicao_2019(Aposentadoria):
+    data_limite_ingresso = date(2019, 11, 13)
+    min_servico_publico = 20
+    
+    @classmethod
+    def calcular_proventos(cls, segurado: Segurado) -> tuple[float | None, float]:
+        return 0.8, 1.0
+
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        if segurado.data_ingresso_servico_publico is None:
+            return False
+            
+        if segurado.sexo == 'F':
+            idade_minima = 55
+            min_tempo_contribuicao = 30
+            tempo_min_magisterio = 25
+        else:
+            idade_minima = 60
+            min_tempo_contribuicao = 35
+            tempo_min_magisterio = 30
+
+        if segurado.tempo_magisterio >= tempo_min_magisterio:
+            idade_minima -= 5
+            min_tempo_contribuicao -= 5
+
+        return (
+            segurado.data_ingresso_servico_publico <= cls.data_limite_ingresso
+            and segurado.idade >= idade_minima
+            and segurado.tempo_contribuicao >= min_tempo_contribuicao
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+        )
+
+class Especial_2019(RegraDeTransicao_2019):
+    min_tempo_carreira = 15
+
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        if segurado.data_ingresso_servico_publico is None:
+            return False
+        
+        pontuacao = segurado.idade + segurado.tempo_contribuicao
+
+
+        return (
+            segurado.data_ingresso_servico_publico <= cls.data_limite_ingresso
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+            and segurado.tempo_carreira >= cls.min_tempo_carreira
+            and segurado.exposicao >= 25
+            and pontuacao >= 85
+        )
+
+
+
+
+
