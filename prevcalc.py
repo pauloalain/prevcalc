@@ -19,6 +19,65 @@ class Aposentadoria(ABC):   #Classe não instanciada.
         self.tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
         self.tempo_cargo = int(kwargs.get('tempo_cargo', 0))
         self.dados_extras = kwargs
+
+    #Encapsulamento 
+    @property
+    def sexo(self):
+        return self._sexo
+
+    @sexo.setter
+    def sexo(self, valor):
+        valor = str(valor).strip().upper()
+        if valor not in('M', 'F'):
+            raise ValueError("Sexo deve ser M ou F.")
+        self._sexo = valor
+
+    @property
+    def idade(self):
+        return self._idade
+
+    @idade.setter
+    def idade(self, valor):
+        valor = int(valor)
+        if valor < 0:
+            raise ValueError("Idade não pode ser negativa.")
+        self._idade = valor
+
+    @property
+    def tempo_contribuicao(self)
+        return self._tempo_contribuicao
+
+    @tempo_contribuicao.setter
+    def tempo_contribuicao(self, valor):
+        valor = int(valor)
+        if valor < 0:
+            raise ValueError("Tempo de contribuição não pode ser negativo.")
+        self._tempo_contribuicao = valor
+
+    @property
+    def tempo_servico_publico(self):
+        return self._tempo_servico_publico
+
+    @tempo_servico_publico.setter
+    def tempo_servico_publico(self, valor):
+        valor = int(valor)
+        if valor < 0:
+            raise ValueError("Tempo de serviço público não pode ser negativo.")
+        self._tempo_servico_publico = valor
+
+    @property
+    def tempo_cargo(self):
+        return self._tempo_cargo
+
+    @tempo_cargo.setter
+    def tempo_cargo(self, valor):
+        valor = int(valor)
+        if valor < 0:
+            raise ValueError("Tempo no cargo não pode ser negativo.")
+        self._tempo_cargo = valor
+
+
+        
 # Class method e abstract method para atribuição de classes aos objetos de acordo com os requisitos.
     @classmethod
     @abstractmethod
