@@ -305,9 +305,8 @@ class Especial_2019(RegraDeTransicao_2019):
     def checar_tipo(cls, segurado: Segurado) -> bool:
         if segurado.data_ingresso_servico_publico is None:
             return False
-        
+            
         pontuacao = segurado.idade + segurado.tempo_contribuicao
-
 
         return (
             segurado.data_ingresso_servico_publico <= cls.data_limite_ingresso
