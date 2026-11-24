@@ -1,30 +1,30 @@
 from models import Segurado
-import regras  # Garante que todas as classes do módulo sejam carregadas na memória
+import regras  # Carrega todas as regras na memória
 from regras import Aposentadoria
 
 
 class MotorEnquadramento:
     @staticmethod
     def _listar_todas_regras(classe_base: type = Aposentadoria) -> list[type[Aposentadoria]]:
-        """Busca recursivamente todas as subclasses (filhas, netas, etc.) de Aposentadoria."""
+        """Busca recursivamente todas as subclasses concretas de Aposentadoria."""
         todas = []
         for subclasse in classe_base.__subclasses__():
-            todas.append(subclasse)
+            # Se __abstractmethods__ estiver vazio, a classe já implementou checar_tipo
+            if not subclasse.__abstractmethods__:
+                todas.append(subclasse)
             todas.extend(MotorEnquadramento._listar_todas_regras(subclasse))
         return todas
 
     @classmethod
     def enquadrar(cls, segurado: Segurado) -> list[type[Aposentadoria]]:
-        """Recebe o Segurado normalizado, testa todas as regras e retorna apenas as classes elegíveis."""
+        """Testa todas as regras concretas usando checar_tipo e retorna as elegíveis."""
         elegiveis: list[type[Aposentadoria]] = []
 
         for regra in cls._listar_todas_regras():
             try:
-                if regra.elegivel(segurado):
+                if regra.checar_tipo(segurado):
                     elegiveis.append(regra)
             except Exception:
-                # Se faltar algum dado (None) ou ocorrer erro na avaliação desta regra,
-                # o motor não para e continua testando todas as outras regras normalmente.
                 continue
 
         return elegiveis
