@@ -1,200 +1,292 @@
-# Classe abstrata Aposentadoria 
 from abc import ABC, abstractmethod
-"""
-#Classe abstrata define principais padrões de requisitos para aposentadoria e **kwargs permite outros parâmetros para classes filhas. Contrato flexível, mas classe pai adianta principais padrões.
+from dataclasses import dataclass, field
+from datetime import date
+from typing import Any
 
-Criei uma forma que fosse genérica para múltiplos usos, extrair dados de uma planilha, banco de dados, formulário, chatbot.
+
+@dataclass
+class Segurado:
+    # --- Dados Base (já tipados) ---
+    sexo: str
+    idade: int = 0
+    tempo_contribuicao: int = 0
+    tempo_servico_publico: int = 0
+    tempo_cargo: int = 0
+    data_ingresso_servico_publico: date | None = None  # Novo campo!
+
+    # --- Dados Específicos ---
+    tempo_carreira: int = 0
+    tempo_magisterio: int = 0
+    exposicao: int = 0
+    deficiencia: bool = False
+    grau_deficiencia: str = ''
+    incapacidade_permanente: bool = False
+    acidente_de_trabalho: bool = False
+
+    # --- Extras ---
+    dados_extras: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        # Apenas regras de domínio (não conversão de formatos externos)
+        if self.sexo not in ('M', 'F'):
+            raise ValueError("Sexo deve ser 'M' ou 'F'.")
+
+        if self.data_ingresso_servico_publico and self.data_ingresso_servico_publico > date.today():
+            raise ValueError("Data de ingresso não pode ser no futuro.")
+
+        campos_numericos = (
+            self.idade,
+            self.tempo_contribuicao,
+            self.tempo_servico_publico,
+            self.tempo_cargo,
+            self.tempo_carreira,
+            self.tempo_magisterio,
+            self.exposicao,
+        )
+        if any(valor < 0 for valor in campos_numericos):
+            raise ValueError("Tempos e idade não podem ser negativos.")
+
+
 """
-#TODO Construir método abstrato de cálculo.
-class Aposentadoria(ABC):   #Classe não instanciada.
-# Padrões de contagem que se repetem em vários tipos de aposentadoria.
+Classe abstrata define principais padrões de requisitos para aposentadoria.
+Contrato flexível usando o modelo Segurado, mas classe pai adianta principais padrões.
+"""
+
+
+class Aposentadoria(ABC):  # Classe não instanciada.
+    # Padrões de contagem que se repetem em vários tipos de aposentadoria.
     min_tempo_contribuicao = 25
     min_servico_publico = 15
     min_cargo = 5
-#Parâmetros principais para avaliação e cálculo de aposentadoria. Vão ser mais importantes quando for feito o Método de cálculo.
-    def __init__(self, **kwargs):
-        self.sexo = kwargs.get('sexo', '').upper()
-        self.idade = int(kwargs.get('idade', 0))
-        self.tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
-        self.tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
-        self.tempo_cargo = int(kwargs.get('tempo_cargo', 0))
-        self.dados_extras = kwargs
-# Class method e abstract method para atribuição de classes aos objetos de acordo com os requisitos.
+    percentual_de_contrib: float | None = 1.0
+
+    def __init__(self, segurado: Segurado):
+        self.segurado = segurado
+
     @classmethod
     @abstractmethod
-    def checar_tipo(cls, **kwargs):
+    def checar_tipo(cls, segurado: Segurado) -> bool:
         pass
-    
-    @classmethod
-    def coeficiente_redutor(cls, **kwargs):
-        return 1
-# Coeficiente redutor aplicado somente no caso de Aposentadoria Compulsória, com contribuição menor que 20 anos. Definida na classe Compulsoria(Aposentadoria)
-    @classmethod
-    def calcular_proventos(cls, **kwargs):
-        tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
-        basecalculo = 0.60
-        anos_excedentes = max(0, tempo_contribuicao - 20)
-        bonus = anos_excedentes * 0.02
-        coeficiente = (basecalculo + bonus)*cls.coeficiente_redutor(**kwargs)
-        return coeficiente
-"""
-#Calculo geral baseado na lei: (60% + 02% por ano que passar de 20 anos) x (100% da média das contribuições desde 1994)
 
-"""
-"""
-    # Aposentadoria Voluntária - Padrão típico de aposentadoria baseado em Idade, Tempo de contribuição, tempo de serviço público e tempo no cargo.
-"""
+    # Coeficiente redutor aplicado somente no caso de Aposentadoria Compulsória (< 20 anos).
+    # Cálculo geral: (60% + 2% por ano que passar de 20 anos) x (média de 100% das contribuições desde 1994)
+
+
 class Voluntaria(Aposentadoria):
-    def __init__(self,  **kwargs):
-        super().__init__(**kwargs)
-        
+    """
+    Aposentadoria Voluntária - Padrão típico de aposentadoria baseado em Idade,
+    Tempo de contribuição, tempo de serviço público e tempo no cargo.
+    """
     @classmethod
-    
-    def checar_tipo(cls,**kwargs):
-        sexo = kwargs.get('sexo', '').upper()
-        idade = int(kwargs.get('idade', 0))
-        tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
-        tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
-        tempo_cargo = int(kwargs.get('tempo_cargo', 0))
-        tempo_magisterio = int(kwargs.get('tempo_magisterio', 0)) #Requisito extra, modificador de Idade mínima. 
-        
-        idade_minima = 65
-        if sexo.upper() == 'F':
-            idade_minima = 60
-        elif sexo.upper() != 'M':
-            return False
-        
-        if tempo_magisterio >= 25: #Redução de 5 anos de idade mínima caso cumpra o tempo de contribuição em magistério.
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        idade_minima = 60 if segurado.sexo == 'F' else 65
+
+        # Redução de 5 anos de idade mínima caso cumpra o tempo de contribuição em magistério.
+        if segurado.tempo_magisterio >= 25:
             idade_minima -= 5
-        
-        return (idade >= idade_minima and 
-                tempo_contribuicao >= cls.min_tempo_contribuicao and 
-                tempo_servico_publico >= cls.min_servico_publico and 
-                tempo_cargo >= cls.min_cargo)
-        
 
-    
+        return (
+            segurado.idade >= idade_minima
+            and segurado.tempo_contribuicao >= cls.min_tempo_contribuicao
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+        )
+
+
 class Especial(Aposentadoria):
-        def __init__(self,  **kwargs):
-            super().__init__(**kwargs)
-            
-        @classmethod      
-        
-        def checar_tipo(cls,**kwargs):
-            especial = kwargs.get('especial', '').upper()
-            sexo = kwargs.get('sexo', '').upper()
-            idade = int(kwargs.get('idade', 0))
-            tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
-            tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
-            tempo_cargo = int(kwargs.get('tempo_cargo', 0))
-            tempo_exposicao = int(kwargs.get('exposicao', 0))
-            
-            idade_minima = 60
-            if sexo.upper() == 'F':
-                idade_minima = 57
-            elif sexo.upper() != 'M':
-                return False
-            return (especial == 'S' and idade >= idade_minima and 
-                    tempo_contribuicao >= cls.min_tempo_contribuicao and 
-                    tempo_servico_publico >= cls.min_servico_publico and 
-                    tempo_cargo >= cls.min_cargo and
-                    tempo_exposicao >= 25)
-        
-class Deficiencia(Aposentadoria):
-        def __init__(self, modificador=None, **kwargs):
-            sexo = kwargs.get('sexo', '').upper()
-            self.modificador = modificador or self.__class__.modificador_tempo(sexo)
-            super().__init__(**kwargs)
-            
-        @classmethod
-        
-        def modificador_tempo(cls, sexo):
-            return -10
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        idade_minima = 57 if segurado.sexo == 'F' else 60
 
-        @classmethod      
-        
-        def checar_tipo(cls,**kwargs):
-            deficiencia = kwargs.get('deficiencia', '').upper()
-            sexo = kwargs.get('sexo', '').upper()
-            idade = int(kwargs.get('idade', 0))
-            tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
-            tempo_servico_publico = int(kwargs.get('tempo_servico_publico', 0))
-            tempo_cargo = int(kwargs.get('tempo_cargo', 0))
-            grau_deficiencia_raw = kwargs.get('grau_deficiencia', '')
-            grau_informado = str(grau_deficiencia_raw or "").strip().upper()
-            
-            if grau_informado in ("0", "NONE"):
-                grau_informado = ""
-                
-            graudaclasse = cls.__name__.replace('Deficiencia', '').upper()
-            
-            if graudaclasse == "":
-                valida_grau = True
-                idade_minima = 60 if sexo == 'M' else 55
-            else:
-                valida_grau = (grau_informado == graudaclasse)
-                idade_minima = 0
-                
-            if sexo not in ['M', 'F']:
-                return False
-                        
-            return (deficiencia == 'S' and valida_grau and idade >= idade_minima and 
-                    tempo_contribuicao >= (cls.min_tempo_contribuicao + cls.modificador_tempo(sexo)) and 
-                    tempo_servico_publico >= cls.min_servico_publico and 
-                    tempo_cargo >= cls.min_cargo)
-            
+        return (
+            segurado.idade >= idade_minima
+            and segurado.tempo_contribuicao >= cls.min_tempo_contribuicao
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+            and segurado.exposicao >= 25
+        )
+
+
+class Deficiencia(Aposentadoria):
+    def __init__(self, segurado: Segurado, modificador: int | None = None):
+        super().__init__(segurado)
+        self.modificador = (
+            modificador
+            if modificador is not None
+            else self.__class__.modificador_tempo(segurado.sexo)
+        )
+
+    @classmethod
+    def modificador_tempo(cls, sexo: str) -> int:
+        return -10
+
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        grau_da_classe = cls.__name__.replace('Deficiencia', '').upper()
+
+        if grau_da_classe == '':
+            valida_grau = True
+            idade_minima = 55 if segurado.sexo == 'F' else 60
+        else:
+            valida_grau = (segurado.grau_deficiencia == grau_da_classe)
+            idade_minima = 0
+
+        tempo_minimo_necessario = cls.min_tempo_contribuicao + cls.modificador_tempo(segurado.sexo)
+
+        return (
+            segurado.deficiencia
+            and valida_grau
+            and segurado.idade >= idade_minima
+            and segurado.tempo_contribuicao >= tempo_minimo_necessario
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+        )
+
+
 class DeficienciaGrave(Deficiencia):
     @classmethod
-    def modificador_tempo(cls, sexo):
+    def modificador_tempo(cls, sexo: str) -> int:
         return -5 if sexo == 'F' else 0
+
 
 class DeficienciaModerada(Deficiencia):
     @classmethod
-    def modificador_tempo(cls, sexo):
+    def modificador_tempo(cls, sexo: str) -> int:
         return -1 if sexo == 'F' else 4
+
 
 class DeficienciaLeve(Deficiencia):
     @classmethod
-    def modificador_tempo(cls, sexo ):
+    def modificador_tempo(cls, sexo: str) -> int:
         return 3 if sexo == 'F' else 8
-    
+
+
 class Compulsoria(Aposentadoria):
-    def __init__(self,  **kwargs):
-        super().__init__(**kwargs)    
-        
     @classmethod
-    def checar_tipo(cls, **kwargs):
-        idade = int(kwargs.get('idade', 0))
-        return idade >= 75
-    
-    @classmethod
-    def coeficiente_redutor(cls,**kwargs):
-        tempo_contribuicao = int(kwargs.get('tempo_contribuicao', 0))
-        if tempo_contribuicao < 20:
-            return max(1, tempo_contribuicao/20)
-        return 1
-    
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        return segurado.idade >= 75
+
 class IncapacidadePermanente(Aposentadoria):
     @classmethod
-    def checar_tipo(cls, **kwargs):
-        incapacidade_permanente = kwargs.get('incapacidade_permanente', '').upper()
-        return incapacidade_permanente == 'S'
-    
-    @classmethod
-    def calcular_proventos(cls, **kwargs):
-        return 1
-    
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        return segurado.incapacidade_permanente
+
 class AcidentedeTrabalho(IncapacidadePermanente):
-    def checar_tipo(cls, **kwargs):
-        incapacidade_permanente = kwargs.get('incapacidade_permanente', '').upper()
-        acidente_de_trabalho = kwargs.get('acidente_de_trabalho', '').upper()
-        return incapacidade_permanente == 'S' and acidente_de_trabalho == 'S'
+    percentual_de_contrib = 0.8  # Herda calcular_proventos() e já retorna (0.8, 1.0)!
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        return segurado.incapacidade_permanente and segurado.acidente_de_trabalho
+
+class RegraDeTransicao_2003(Aposentadoria):
+    data_limite_ingresso = date(2019, 12, 31)
+
+class RegraDeTransicao_2003_A(RegraDeTransicao_2003):
+    min_servico_publico = 20
     
     @classmethod
-    def calcular_proventos(cls, **kwargs):
-        return 0.8
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        if segurado.data_ingresso_servico_publico is None:
+            return False
+
+        if segurado.sexo == 'F':
+            idade_minima = 55
+            min_tempo_contribuicao = 30
+            tempo_min_magisterio = 25
+        else:
+            idade_minima = 60
+            min_tempo_contribuicao = 35
+            tempo_min_magisterio = 30          
         
-    
-    
-    
-    
+        if segurado.tempo_magisterio >= tempo_min_magisterio:
+            idade_minima -= 5
+            min_tempo_contribuicao -= 5
+
+        return (
+            segurado.data_ingresso_servico_publico <= cls.data_limite_ingresso
+            and segurado.idade >= idade_minima
+            and segurado.tempo_contribuicao >= min_tempo_contribuicao
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+        )
+
+class RegraDeTransicao_2003_B(RegraDeTransicao_2003): #Regra de Transição sem Idade Mínima
+    min_servico_publico = 25
+    min_tempo_carreira = 15
+
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        if segurado.data_ingresso_servico_publico is None:
+            return False
+            
+        if segurado.sexo == 'F':
+            idade_minima = 55
+            min_tempo_contribuicao = 30
+        else:
+            idade_minima = 60
+            min_tempo_contribuicao = 35
+            
+        anos_excedentes = max(0, segurado.tempo_contribuicao - min_tempo_contribuicao)
+        idade_minima -= anos_excedentes
+        
+        return (
+            segurado.data_ingresso_servico_publico <= cls.data_limite_ingresso
+            and segurado.idade >= idade_minima
+            and segurado.tempo_contribuicao >= min_tempo_contribuicao
+            and segurado.tempo_carreira >= cls.min_tempo_carreira
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+        )
+
+class RegraDeTransicao_2019(Aposentadoria):
+    data_limite_ingresso = date(2019, 11, 13)
+    min_servico_publico = 20
+
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        if segurado.data_ingresso_servico_publico is None:
+            return False
+            
+        if segurado.sexo == 'F':
+            idade_minima = 55
+            min_tempo_contribuicao = 30
+            tempo_min_magisterio = 25
+        else:
+            idade_minima = 60
+            min_tempo_contribuicao = 35
+            tempo_min_magisterio = 30
+
+        if segurado.tempo_magisterio >= tempo_min_magisterio:
+            idade_minima -= 5
+            min_tempo_contribuicao -= 5
+
+        return (
+            segurado.data_ingresso_servico_publico <= cls.data_limite_ingresso
+            and segurado.idade >= idade_minima
+            and segurado.tempo_contribuicao >= min_tempo_contribuicao
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+        )
+
+class Especial_2019(RegraDeTransicao_2019):
+    min_tempo_carreira = 15
+
+    @classmethod
+    def checar_tipo(cls, segurado: Segurado) -> bool:
+        if segurado.data_ingresso_servico_publico is None:
+            return False
+            
+        pontuacao = segurado.idade + segurado.tempo_contribuicao
+
+        return (
+            segurado.data_ingresso_servico_publico <= cls.data_limite_ingresso
+            and segurado.tempo_servico_publico >= cls.min_servico_publico
+            and segurado.tempo_cargo >= cls.min_cargo
+            and segurado.tempo_carreira >= cls.min_tempo_carreira
+            and segurado.exposicao >= 25
+            and pontuacao >= 85
+        )
+
+
+
+
+
