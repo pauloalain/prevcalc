@@ -1,3 +1,4 @@
+from models import Segurado
 from regras import (
     AcidentedeTrabalho,
     Aposentadoria,
