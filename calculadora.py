@@ -1,4 +1,4 @@
-from models import Segurado
+from models import Segurado, ResultadoCalculo
 from regras import (
     AcidentedeTrabalho,
     Aposentadoria,
