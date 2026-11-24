@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from datetime import date
-from typing import Any
+from models import Segurado
 
 
 @dataclass
