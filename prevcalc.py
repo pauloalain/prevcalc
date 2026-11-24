@@ -67,20 +67,9 @@ class Aposentadoria(ABC):  # Classe não instanciada.
     @abstractmethod
     def checar_tipo(cls, segurado: Segurado) -> bool:
         pass
-   
-    @classmethod
-    def coeficiente_redutor(cls, segurado: Segurado) -> float:
-        return 1.0
 
     # Coeficiente redutor aplicado somente no caso de Aposentadoria Compulsória (< 20 anos).
     # Cálculo geral: (60% + 2% por ano que passar de 20 anos) x (média de 100% das contribuições desde 1994)
-    @classmethod
-    def calcular_proventos(cls, segurado: Segurado) -> tuple[float | None, float]:
-        base_calculo = 0.60
-        anos_excedentes = max(0, segurado.tempo_contribuicao - 20)
-        bonus = anos_excedentes * 0.02
-        coeficiente = (base_calculo + bonus) * cls.coeficiente_redutor(segurado) #coeficiente de proporcionalidade aplicado à média calculada
-        return cls.percentual_de_contrib, round(coeficiente, 4) #Retorna o percentual de contribuições para cálculo da média e o coeficiente de proporcionalidade.
 
 
 class Voluntaria(Aposentadoria):
@@ -177,22 +166,10 @@ class Compulsoria(Aposentadoria):
     def checar_tipo(cls, segurado: Segurado) -> bool:
         return segurado.idade >= 75
 
-    @classmethod
-    def coeficiente_redutor(cls, segurado: Segurado) -> float:
-        if segurado.tempo_contribuicao < 20:
-            return segurado.tempo_contribuicao / 20
-        return 1.0
-
-
 class IncapacidadePermanente(Aposentadoria):
     @classmethod
     def checar_tipo(cls, segurado: Segurado) -> bool:
         return segurado.incapacidade_permanente
-
-    @classmethod
-    def calcular_proventos(cls, segurado: Segurado) -> tuple[float, float]:
-        return cls.percentual_de_contrib, 1.0
-
 
 class AcidentedeTrabalho(IncapacidadePermanente):
     percentual_de_contrib = 0.8  # Herda calcular_proventos() e já retorna (0.8, 1.0)!
@@ -202,10 +179,6 @@ class AcidentedeTrabalho(IncapacidadePermanente):
 
 class RegraDeTransicao_2003(Aposentadoria):
     data_limite_ingresso = date(2019, 12, 31)
-    
-    @classmethod
-    def calcular_proventos(cls, segurado: Segurado) -> tuple[float | None, float]:
-        return None, 1.0
 
 class RegraDeTransicao_2003_A(RegraDeTransicao_2003):
     min_servico_publico = 20
@@ -267,10 +240,6 @@ class RegraDeTransicao_2003_B(RegraDeTransicao_2003): #Regra de Transição sem 
 class RegraDeTransicao_2019(Aposentadoria):
     data_limite_ingresso = date(2019, 11, 13)
     min_servico_publico = 20
-    
-    @classmethod
-    def calcular_proventos(cls, segurado: Segurado) -> tuple[float | None, float]:
-        return 0.8, 1.0
 
     @classmethod
     def checar_tipo(cls, segurado: Segurado) -> bool:
