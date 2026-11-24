@@ -46,5 +46,5 @@ class Segurado:
 
     class ResultadoCalculo(NamedTuple):
         percentual_media: float | None
-        coeficiente_proporcao: float
+        coeficiente: float
 
