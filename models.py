@@ -44,3 +44,7 @@ class Segurado:
         if any(valor < 0 for valor in campos_numericos):
             raise ValueError("Tempos e idade não podem ser negativos.")
 
+    class ResultadoCalculo(NamedTuple):
+        percentual_media: float | None
+        coeficiente_proporcao: float
+
